@@ -17,6 +17,11 @@ app.get("/", (req, res) => {
   res.send("Welcome to the API")
 })
 
+app.use((req, res, next) => {
+  console.log(`${req.method} request for '${req.url}'`);
+  next();
+});
+
 app.use("/grades", grades)
 app.use("/grades", grades_agg);
 
