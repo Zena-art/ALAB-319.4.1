@@ -196,7 +196,84 @@ router.get("/stats/:id", async (req, res) => {
   }
 });
 
+// Create a single-field index on class_id
+db.collection("grades").createIndex({ class_id: 1 });
 
+//Create a single-field index on learner_id
+db.collection("grades").createIndex({ learner_id: 1 });
+
+//Create a compound index on learner_id and class_id, in that order, both ascending
+db.collection("grades").createIndex({ learner_id: 1, class_id: 1 });
+
+// /**
+//  * Create the following validation rules on the grades collection:
+// Each document must have a class_id field, which must be an integer between 0 and 300, inclusive.
+// Each document must have a learner_id field, which must be an integer greater than or equal to 0.
+//  */
+const setValidationRules = async () => {
+  const collection = db.collection("grades"); 
+  
+  try {
+    await db.command({
+      collMod: "grades",
+      validator: {
+        $jsonSchema: {
+          bsonType: "object",
+          required: ["class_id", "learner_id"],
+          properties: {
+            class_id: {
+              bsonType: "int",
+              minimum: 0,
+              maximum: 300,
+            },
+            learner_id: {
+              bsonType: "int",
+              minimum: 0,
+            },
+          },
+        },
+      },
+    });
+    console.log("Validation rules set successfully");
+  } catch (error) {
+    console.error("Error setting validation rules:", error);
+  }
+};
+
+setValidationRules();
+
+
+
+const testValidation = async () => {
+  const collection = db.collection("grades");
+
+  // Define test documents
+  const testDocuments = [
+    { class_id: 150, learner_id: 1, scores: [] }, // Valid document
+    { class_id: -1, learner_id: 2, scores: [] }, // Invalid: class_id < 0
+    { class_id: 301, learner_id: 3, scores: [] }, // Invalid: class_id > 300
+    { class_id: 150 }, // Invalid: missing learner_id
+    { learner_id: 4, scores: [] }, // Invalid: missing class_id
+    { class_id: 100, learner_id: -5, scores: [] }, // Invalid: learner_id < 0
+  ];
+
+  // Loop through test documents and try to insert them
+  for (const doc of testDocuments) {
+    try {
+      await collection.insertOne(doc);
+      console.log(`Document inserted successfully: ${JSON.stringify(doc)}`);
+    } catch (error) {
+      console.error(`Error inserting document: ${error.message}`);
+    }
+  }
+};
+
+// Run the test
+testValidation();
+
+// Change the validation action to "warn."
+db.command({ collMod: "grades", validationAction: "warn" });
+ 
 
 
 
