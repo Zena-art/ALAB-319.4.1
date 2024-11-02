@@ -83,7 +83,7 @@ router.get("/learner/:id/avg-class", async (req, res) => {
 
 // Create a GET route at /grades/stats
 // Within this route, create an aggregation pipeline that returns the following information:
-// The number of learners with a weighted average (as calculated by the existing routes) higher than 70%.
+// The number of learners with a weighted average (as calculated by the existing routes) higher than 50%.
 // The total number of learners.
 // The percentage of learners with an average above 50% (a ratio of the above two outputs).
 
@@ -143,9 +143,59 @@ router.get("/stats/count", async (req, res) => {
   }
 });
 
+// Create a GET route at /grades/stats/:id
+// Within this route, mimic the above aggregation pipeline, but only for learners within a class that has a class_id equal to the specified :id.
 
+router.get("/stats/:id", async (req, res) => {
+  let collection = await db.collection("grades");
 
-console.log("after registering route /grades/stats");
+  try {
+    let result = await collection
+      .aggregate([
+        { $match: { class_id: Number(req.params.id) } },
+        { $unwind: { path: "$scores" } },
+        {
+          $group: {
+            _id: "$learner_id",
+            avg: { $avg: "$scores.score" }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            above: {
+              $sum: { $cond: [{ $gte: ["$avg", 50] }, 1, 0] }
+            },
+          }
+        },
+        {
+          $project: {
+            count: 1,
+            above: 1,
+            percent: {
+              $cond: {
+                if: { $gt: ["$count", 0] },
+                then: { $multiply: [{ $divide: ["$above", "$count"] }, 100] },
+                else: 0
+              }
+            }
+          }
+        }
+      ])
+      .toArray();
+
+    if (!result || result.length === 0) {
+      res.status(404).send("Not found");
+    } else {
+      res.status(200).send(result[0]);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).send("Internal server error");
+  }
+});
+
 
 
 
